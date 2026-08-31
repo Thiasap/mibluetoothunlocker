@@ -50,6 +50,8 @@ import zixing.bluetooth.unlocker.utils.SPUtils;
 
 public class MainActivity extends BaseActivity  {
 
+    private static final boolean DEBUG_LOG = false;
+
     public  static boolean isXpEnable(){
         return false;
     }
@@ -64,8 +66,19 @@ public class MainActivity extends BaseActivity  {
     public static MainActivity self = null;
 
     private static void myLog(String msg) {
+        if (!DEBUG_LOG) {
+            return;
+        }
         try {
-            Log.i("hookhelper", msg);
+            Log.d("hookhelper", msg);
+        } catch (Exception ex) {
+
+        }
+    }
+
+    private static void errorLog(String msg) {
+        try {
+            Log.e("hookhelper", msg);
         } catch (Exception ex) {
 
         }
@@ -435,7 +448,7 @@ public class MainActivity extends BaseActivity  {
             });
             builder.create().show();
         } catch (Exception e) {
-            e.printStackTrace();
+            errorLog("reboot error: " + e.toString());
         }
     }
 
@@ -573,7 +586,7 @@ public class MainActivity extends BaseActivity  {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            errorLog("readConfig error: " + e.toString());
             readNoDevice();
         }
     }

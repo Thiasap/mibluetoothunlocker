@@ -40,9 +40,21 @@ import zixing.bluetooth.unlocker.activity.MainActivity;
 public class ConfigUtil {
 
     public static final String BASE_MODE="basemode";
+    private static final boolean DEBUG_LOG = false;
     private static ContentResolver resolver;
 
     private static void myLog(String msg) {
+        if (!DEBUG_LOG) {
+            return;
+        }
+        writeLog(msg);
+    }
+
+    private static void errorLog(String msg) {
+        writeLog(msg);
+    }
+
+    private static void writeLog(String msg) {
         try {
             Log.i("hookhelper",msg);
             if(MainActivity.self==null)
@@ -70,13 +82,13 @@ public class ConfigUtil {
             p.waitFor();
             result = p.exitValue();
         } catch (Exception e) {
-            e.printStackTrace();
+            errorLog("execRootCmdSilent error: " + e.toString());
         } finally {
             if (dos != null) {
                 try {
                     dos.close();
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    errorLog("close root command stream error: " + e.toString());
                 }
             }
         }
@@ -155,7 +167,7 @@ public class ConfigUtil {
 
         } catch (Exception ex)
         {
-            myLog("----------initXSP error------------"+ex.toString());
+            errorLog("----------initXSP error------------"+ex.toString());
         }
     }
 
@@ -176,8 +188,7 @@ public class ConfigUtil {
         }
         catch (Exception ex)
         {
-            myLog(ex.toString());
-            ex.printStackTrace();
+            errorLog(ex.toString());
             return data;
         }
     }

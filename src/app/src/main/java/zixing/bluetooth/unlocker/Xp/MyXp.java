@@ -23,7 +23,22 @@ import zixing.bluetooth.unlocker.utils.ConfigUtil;
 
 public class MyXp implements IXposedHookLoadPackage {
 
+    private static final boolean DEBUG_LOG = false;
+
     public static void myLog(String msg)
+    {
+        if (!DEBUG_LOG) {
+            return;
+        }
+        writeLog(msg);
+    }
+
+    private static void errorLog(String msg)
+    {
+        writeLog(msg);
+    }
+
+    private static void writeLog(String msg)
     {
         Log.i("hookhelper",msg);
         XposedBridge.log(msg);
@@ -386,17 +401,17 @@ public class MyXp implements IXposedHookLoadPackage {
                                 }
                             }
                         } catch (Exception ex) {
-                            myLog(ex.toString());
+                            errorLog(ex.toString());
                         }
                     }
                 });
             }
             catch (XposedHelpers.ClassNotFoundError ex){
 
-                myLog(ex.toString());
+                errorLog(ex.toString());
             }
             catch (Exception ex){
-                myLog(ex.toString());
+                errorLog(ex.toString());
             }
 
             myLog("com.android.systemui leave");
@@ -437,7 +452,7 @@ public class MyXp implements IXposedHookLoadPackage {
                 {
                     BluetoothHelper.CanUnlockByBluetoothOldDirect(context,XposedHelpers.callMethod(mLockPatternUtils,"getBluetoothAddressToUnlock").toString() ,classLoader,2)                             ;
                 }  else{
-                    myLog("---------------NULL context--------------"+context+mLockPatternUtils+classLoader);
+                    errorLog("---------------NULL context--------------"+context+mLockPatternUtils+classLoader);
                 }
             }
         };
@@ -483,10 +498,10 @@ public class MyXp implements IXposedHookLoadPackage {
                 });
             }
             else{
-                myLog("---------------NULL unlockMethod--------------");
+                errorLog("---------------NULL unlockMethod--------------");
             }
         } catch (Exception e) {
-             myLog(e.toString());
+             errorLog(e.toString());
         }
     }
 
@@ -502,10 +517,10 @@ public class MyXp implements IXposedHookLoadPackage {
                 });
             }
             else{
-                myLog("---------------NULL unlockMethod--------------");
+                errorLog("---------------NULL unlockMethod--------------");
             }
         } catch (Exception e) {
-            myLog(e.toString());
+            errorLog(e.toString());
         }
     }
 

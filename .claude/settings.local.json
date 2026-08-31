@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(JAVA_HOME=\"C:\\\\Program Files\\\\BellSoft\\\\LibericaJDK-17\" ./gradlew.bat assembleDebug:*)",
+      "Bash(./gradlew.bat assembleDebug)"
+    ]
+  }
+}

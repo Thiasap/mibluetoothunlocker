@@ -15,6 +15,8 @@ import java.util.Set;
 import zixing.bluetooth.unlocker.bean.DeviceBean;
 
 public class BluetoothUtils {
+    private static final boolean DEBUG_LOG = false;
+
     final String TAG = getClass().getName();
     private Context context;
     private static BluetoothUtils bluetoothInstance;
@@ -68,7 +70,7 @@ public class BluetoothUtils {
                     }else {
                         bluetoothInterface.updateBluetoothDervice(bean);
                     }
-                    Log.e(TAG,device.getName()+"："+device.getAddress()+" "+rssi+"  "+bean.getDistance());
+                    debugLog(device.getName()+"："+device.getAddress()+" "+rssi+"  "+bean.getDistance());
             }
         }
     }
@@ -86,7 +88,7 @@ public class BluetoothUtils {
 //        intent.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);//行动扫描模式改变了
 //        intent.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);//动作状态发生了变化
         context.registerReceiver(bluetoothBroadcast, intent);
-        Log.i(TAG,"registerReceiver");
+        debugLog("registerReceiver");
 
     }
 
@@ -112,7 +114,7 @@ public class BluetoothUtils {
                     }else {
                         bluetoothInterface.updateBluetoothDervice(bean);
                     }
-                    Log.e(TAG,device.getName()+"："+device.getAddress()+" "+rssi+"  "+bean.getDistance());
+                    debugLog(device.getName()+"："+device.getAddress()+" "+rssi+"  "+bean.getDistance());
                 }
             }else if(BluetoothAdapter.ACTION_DISCOVERY_STARTED.equals(intent.getAction())){
                 //正在搜索
@@ -201,5 +203,11 @@ public class BluetoothUtils {
         double rssiAbs = Math.abs(rssi);
         double power = (rssiAbs - RSSI_1M) / (10 * N_VALUE);
         return Math.pow(10.0, power);
+    }
+
+    private void debugLog(String msg) {
+        if (DEBUG_LOG) {
+            Log.d(TAG, msg);
+        }
     }
 }

@@ -1,5 +1,7 @@
 package zixing.bluetooth.unlocker.utils;
 
+import android.util.Log;
+
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Collections;
@@ -7,6 +9,8 @@ import java.util.Date;
 import java.util.List;
 
 public class ArrUtils {
+
+    private static final String TAG = "ArrUtils";
 
     /**
      * 对List对象按照某个成员变量进行排序
@@ -90,9 +94,7 @@ public class ArrUtils {
                 }
             }
             catch (Exception e) {
-                String err = e.getLocalizedMessage();
-                System.out.println(err);
-                e.printStackTrace();
+                Log.e(TAG, "sortList error: " + e.toString());
             }
 
             return 0; //未知类型，无法比较大小
