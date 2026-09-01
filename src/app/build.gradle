@@ -49,9 +49,11 @@ android {
     }
 
     packagingOptions {
-        merge 'META-INF/xposed/java_init.list'
-        merge 'META-INF/xposed/module.prop'
-        merge 'META-INF/xposed/scope.list'
+        resources {
+            // 两条成对：保住 META-INF/xposed/ 声明文件不被 AGP 剥离，同时排除其余资源污染
+            merges += "META-INF/xposed/*"
+            excludes += "**"
+        }
     }
 
     lint {

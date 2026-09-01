@@ -33,6 +33,11 @@ mibluetoothunlocker 非小米手环蓝牙解锁小米手机的xposed插件
 
 4.2版本 修复了一个启用解锁提示可能会卡在解锁界面的bug
 
+5.1版本 迁移到 libxposed API 102（现代 Xposed API）：配置改用 Remote Preferences 保存，无需 root 即可读写配置
+
+> ⚠️ 兼容性提示：5.1 起模块要求 **实现了 API 102 的 LSPosed 2.x 版本**（如 Vector 2.2.0 / lsposed.cn 线 2.1.0+）。
+> LSPosed 1.x 或未实现 API 102 的框架将无法加载本模块；如需在旧框架使用，请继续使用 4.x 版本。
+
 
 后续更新欢迎关注公众号：V安全突击队
 ![V安全突击队](https://github.com/zixing131/mibluetoothunlocker/assets/18580281/c6185042-b697-4467-aa7c-f800ae2cf273)

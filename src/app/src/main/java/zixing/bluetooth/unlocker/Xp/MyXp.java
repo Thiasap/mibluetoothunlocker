@@ -2,6 +2,7 @@ package zixing.bluetooth.unlocker.Xp;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.util.Log;
 import android.widget.Toast;
@@ -49,11 +50,25 @@ public class MyXp extends XposedModule {
     }
 
     private void bindRemoteConfig() {
-        ConfigUtil.remoteReader = (key, def) -> getRemotePreferences(ConfigUtil.REMOTE_GROUP).getString(key, def);
+        try {
+            // 缓存引用，避免每次读取都重新 getRemotePreferences()
+            SharedPreferences prefs = getRemotePreferences(ConfigUtil.REMOTE_GROUP);
+            ConfigUtil.remoteReader = prefs::getString;
+            prefs.registerOnSharedPreferenceChangeListener((p, key) ->
+                    myLog("remote config changed: " + key));
+        } catch (UnsupportedOperationException e) {
+            // embedded 框架（LSPatch）下无 remote prefs，降级为默认值
+            ConfigUtil.remoteReader = null;
+            myLog("remote preferences not supported: " + e);
+        }
     }
 
     @Override
     public void onPackageReady(@NonNull XposedModuleInterface.PackageReadyParam param) {
+        // 回调可能超出 scope 范围，多包进程下只处理首个包，防止重复安装 hook
+        if (!param.isFirstPackage()) {
+            return;
+        }
         String packageName = param.getPackageName();
         ClassLoader classLoader = param.getClassLoader();
         if ("com.android.settings".equals(packageName)) {
@@ -132,27 +147,33 @@ public class MyXp extends XposedModule {
         }
     }
 
+    private void hookMethod(String id, Executable executable, XposedInterface.Hooker hooker) {
+        // 同 id 重复 hook 会原子替换旧 hook，避免回调叠加
+        hook(executable).setId(id).intercept(hooker);
+    }
+
     private void hookMethod(Executable executable, XposedInterface.Hooker hooker) {
         hook(executable).intercept(hooker);
     }
 
-    private void hookAllMethods(Class<?> clazz, String name, XposedInterface.Hooker hooker) {
+    private void hookAllMethods(String idPrefix, Class<?> clazz, String name, XposedInterface.Hooker hooker) {
         if (clazz == null) {
             return;
         }
         for (Method method : clazz.getDeclaredMethods()) {
             if (name.equals(method.getName())) {
-                hookMethod(method, hooker);
+                hookMethod(idPrefix + ":" + name, method, hooker);
             }
         }
     }
 
-    private void hookAllConstructors(Class<?> clazz, XposedInterface.Hooker hooker) {
+    private void hookAllConstructors(String idPrefix, Class<?> clazz, XposedInterface.Hooker hooker) {
         if (clazz == null) {
             return;
         }
+        int i = 0;
         for (Constructor<?> constructor : clazz.getDeclaredConstructors()) {
-            hookMethod(constructor, hooker);
+            hookMethod(idPrefix + ":ctor" + (i++), constructor, hooker);
         }
     }
 
@@ -164,7 +185,7 @@ public class MyXp extends XposedModule {
                 "android.security.MiuiLockPatternUtils", classLoader);
 
         final String[] macrep = new String[1];
-        hookMethod(ReflectUtil.findMethod(Application.class, "attach", Context.class), chain -> {
+        hookMethod("settings:app-attach", ReflectUtil.findMethod(Application.class, "attach", Context.class), chain -> {
             Object result = chain.proceed();
             Context context1 = (Context) chain.getArg(0);
             context = context1;
@@ -188,7 +209,7 @@ public class MyXp extends XposedModule {
             return result;
         });
 
-        hookMethod(ReflectUtil.findMethod(MiuiLockPatternUtilClass, "getBluetoothAddressToUnlock"), chain -> {
+        hookMethod("settings:ble-get-address", ReflectUtil.findMethod(MiuiLockPatternUtilClass, "getBluetoothAddressToUnlock"), chain -> {
             Object result = chain.proceed();
             if (macrep[0] != null && !macrep[0].isEmpty()) {
                 if (ConfigUtil.BASE_MODE.equals(macrep[0])) {
@@ -201,7 +222,7 @@ public class MyXp extends XposedModule {
 
         myLog("--------------" + MiuiLockPatternUtilClass + "------------");
 
-        hookMethod(ReflectUtil.findMethod(MiuiSecurityBluetoothMatchDeviceFragmentClass, "switchToTapConfirmingLayout"), chain -> {
+        hookMethod("settings:match-confirm", ReflectUtil.findMethod(MiuiSecurityBluetoothMatchDeviceFragmentClass, "switchToTapConfirmingLayout"), chain -> {
             try {
                 myLog("--------------开始hook switchToTapConfirmingLayout MiuiLockPatternUtilClass------------");
 
@@ -269,7 +290,7 @@ public class MyXp extends XposedModule {
                 mLockPatternUtils = mLockPatternUtilsField.get(chain.getThisObject());
 
                 Class<?> clazzActivity = mUnlockListener.getClass();
-                hookAllMethods(clazzActivity, "onUnlocked", unlockedChain -> {
+                hookAllMethods("settings:device", clazzActivity, "onUnlocked", unlockedChain -> {
                     myLog("-------------- before hook com.android.settings.MiuiSecurityBluetoothDeviceInfoFragment$1 ------------");
                     Object[] args = unlockedChain.getArgs().toArray();
                     if (args.length == 1 && "0".equals(String.valueOf(args[0]))) {
@@ -290,9 +311,9 @@ public class MyXp extends XposedModule {
             return result;
         };
         if (onCreate != null) {
-            hookMethod(onCreate, onCreateHooker);
+            hookMethod("settings:device:onCreate", onCreate, onCreateHooker);
         } else {
-            hookAllMethods(MiuiSecurityBluetoothDeviceInfoFragment, "onCreate", onCreateHooker);
+            hookAllMethods("settings:device-oncreate", MiuiSecurityBluetoothDeviceInfoFragment, "onCreate", onCreateHooker);
         }
         } catch (ReflectUtil.ClassNotFoundError ex) {
             myLog("hookSettings missing class: " + ex);
@@ -312,7 +333,7 @@ public class MyXp extends XposedModule {
                 systemuiR = ReflectUtil.findClass("com.android.systemui.R$string", classLoader);
                 miui_keyguard_ble_unlock_succeed_msg = ReflectUtil.getStaticIntField(systemuiR, "miui_keyguard_ble_unlock_succeed_msg");
 
-                hookMethod(ReflectUtil.findMethod(MiuiKeyguardUtilsClass, "handleBleUnlockSucceed", Context.class), chain -> {
+                hookMethod("systemui:ble-succeed-toast", ReflectUtil.findMethod(MiuiKeyguardUtilsClass, "handleBleUnlockSucceed", Context.class), chain -> {
                     if ("1".equals(ConfigUtil.getString("showtips", "1", 2))) {
                         Context ctx = (Context) chain.getArg(0);
                         String unlockstring = ctx.getResources().getString(miui_keyguard_ble_unlock_succeed_msg);
@@ -326,7 +347,7 @@ public class MyXp extends XposedModule {
                         "tryUnlockByBle");
                 Method toastMakeText = ReflectUtil.findMethod(Toast.class, "makeText", Context.class, int.class, int.class);
                 Method toastShow = ReflectUtil.findMethod(Toast.class, "show");
-                hookMethod(tryUnlockByBle, chain -> {
+                hookMethod("systemui:try-unlock-by-ble", tryUnlockByBle, chain -> {
                     XposedInterface.HookHandle makeTextHandle = hook(toastMakeText).intercept(makeTextChain -> {
                         String resName = ((Context) makeTextChain.getArg(0)).getResources()
                                 .getResourceName((Integer) makeTextChain.getArg(1));
@@ -355,7 +376,7 @@ public class MyXp extends XposedModule {
 
             final Class<?> BluetoothControllerImplClass = ReflectUtil.findClass(
                     "com.android.systemui.statusbar.policy.BluetoothControllerImpl", classLoader);
-            hookAllConstructors(BluetoothControllerImplClass, chain -> {
+            hookAllConstructors("systemui:bt-controller", BluetoothControllerImplClass, chain -> {
                 myLog("-------------- before hook BluetoothControllerImplClass ------------");
                 Object result = chain.proceed();
                 myLog("-------------- after hook BluetoothControllerImplClass ------------");
@@ -368,7 +389,7 @@ public class MyXp extends XposedModule {
                     classLoader
             );
             myLog("-------------- hook MiuiBleUnlockHelper ------------");
-            hookAllConstructors(MiuiBleUnlockHelper, chain -> {
+            hookAllConstructors("systemui:ble-unlock-helper", MiuiBleUnlockHelper, chain -> {
                 myLog("-------------- before hook MiuiBleUnlockHelper ------------");
                 Object result = chain.proceed();
                 myLog("-------------- after hook MiuiBleUnlockHelper ------------");
@@ -381,7 +402,7 @@ public class MyXp extends XposedModule {
                     mLockPatternUtils = mLockPatternUtilsField.get(chain.getThisObject());
 
                     Class<?> clazzActivity = mBleListener.getClass();
-                    hookAllMethods(clazzActivity, "onUnlocked", unlockedChain -> {
+                    hookAllMethods("systemui:ble-listener", clazzActivity, "onUnlocked", unlockedChain -> {
                         myLog("-------------- before hook mBleListener.onUnlocked ------------");
                         if (unlockedChain.getArgs().size() == 1
                                 && "0".equals(String.valueOf(unlockedChain.getArg(0)))) {
@@ -399,7 +420,7 @@ public class MyXp extends XposedModule {
 
             final Class<?> MiuiLockPatternUtilClass = ReflectUtil.findClass(
                     "android.security.MiuiLockPatternUtils", classLoader);
-            hookMethod(ReflectUtil.findMethod(Application.class, "attach", Context.class), chain -> {
+            hookMethod("systemui:app-attach", ReflectUtil.findMethod(Application.class, "attach", Context.class), chain -> {
                 Object result = chain.proceed();
                 try {
                     Context context1 = (Context) chain.getArg(0);
