@@ -1,74 +1,43 @@
 package zixing.bluetooth.unlocker.utils;
 
-import android.annotation.SuppressLint;
-import android.content.ContentResolver;
-import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.database.Cursor;
-import android.net.Uri;
 import android.util.Log;
 import android.widget.Toast;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserFactory;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
-import de.robv.android.xposed.XSharedPreferences;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
-import zixing.bluetooth.unlocker.BuildConfig;
-import zixing.bluetooth.unlocker.Xp.MyXp;
-import zixing.bluetooth.unlocker.activity.MainActivity;
+import io.github.libxposed.service.XposedService;
+import zixing.bluetooth.unlocker.UnlockerApp;
 
 public class ConfigUtil {
 
-    public static final String BASE_MODE="basemode";
-    private static final boolean DEBUG_LOG = false;
-    private static ContentResolver resolver;
+    public static final String BASE_MODE = "basemode";
+    public static final String REMOTE_GROUP = "config";
+    private static final String[] SYNC_KEYS = {"mac", "rssi", "showtips"};
+
+    public interface RemoteConfigReader {
+        String getString(String key, String def);
+    }
+
+    public static volatile RemoteConfigReader remoteReader;
 
     private static void myLog(String msg) {
-        if (!DEBUG_LOG) {
-            return;
-        }
-        writeLog(msg);
-    }
-
-    private static void errorLog(String msg) {
-        writeLog(msg);
-    }
-
-    private static void writeLog(String msg) {
         try {
-            Log.i("hookhelper",msg);
-            if(MainActivity.self==null)
-            {
-                XposedBridge.log(msg);
-            }
-        }
-        catch (Exception ex)
-        {
-
+            Log.i("hookhelper", msg);
+        } catch (Exception ignored) {
         }
     }
 
-    // cmd="chmod 777 /dev/ttyACM"
     public static int execRootCmdSilent(String cmd) {
         int result = -1;
         DataOutputStream dos = null;
@@ -82,113 +51,122 @@ public class ConfigUtil {
             p.waitFor();
             result = p.exitValue();
         } catch (Exception e) {
-            errorLog("execRootCmdSilent error: " + e.toString());
+            e.printStackTrace();
         } finally {
             if (dos != null) {
                 try {
                     dos.close();
                 } catch (IOException e) {
-                    errorLog("close root command stream error: " + e.toString());
+                    e.printStackTrace();
                 }
             }
         }
         return result;
     }
 
-
     public static boolean setString(String data, String value) {
-        return SPUtils.setString(data,value);
+        boolean ok = SPUtils.setString(data, value);
+        XposedService service = UnlockerApp.getService();
+        if (service != null) {
+            try {
+                service.getRemotePreferences(REMOTE_GROUP).edit().putString(data, value).commit();
+            } catch (Exception ex) {
+                myLog("sync remote pref failed: " + ex);
+            }
+        }
+        return ok;
     }
 
-    @SuppressLint("WrongConstant")
     public static void initXSP(Context context) {
         try {
-            if(MainActivity.self==null)
-            {
-                return;
-            }
-            if(SPUtils.isEnableModule==false)
-            {
+            if (!SPUtils.isEnableModule) {
                 return;
             }
 
             String mac = "";
-            String rssi="";
+            String rssi = "";
             String bkdatapath = "/data/data/zixing.bluetooth.unlocker/shared_prefs/unlocker.xml";
 
-            try{
-                File file1=new File(bkdatapath);
-                //创建DOM解析工厂
+            try {
+                File file1 = new File(bkdatapath);
                 DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                //创建DON解析器
                 DocumentBuilder dombuild = factory.newDocumentBuilder();
-                //开始解析XML文档并且得到整个文档的对象模型
                 Document dom = dombuild.parse(file1);
-                //得到根节点下所有标签为<book>的子节点
                 NodeList bookList = dom.getElementsByTagName("map");
-                //遍历book节点
                 for (int i = 0; i < bookList.getLength(); i++) {
-                    //得到本次Book元素节点
                     Element bookElement = (Element) bookList.item(i);
-
-                    String name =  bookElement.getTagName();
-                    if("map".equals(name))
-                    {
+                    String name = bookElement.getTagName();
+                    if ("map".equals(name)) {
                         NodeList strings = dom.getElementsByTagName("string");
                         for (int j = 0; j < strings.getLength(); j++) {
-
                             Element item2 = (Element) strings.item(j);
-                            String name2 =  item2.getAttribute("name");
-                            String value =  item2.getTextContent();
-                            if("mac".equals(name2))
-                            {
+                            String name2 = item2.getAttribute("name");
+                            String value = item2.getTextContent();
+                            if ("mac".equals(name2)) {
                                 mac = value;
-                            }else if("rssi".equals(name2))
-                            {
+                            } else if ("rssi".equals(name2)) {
                                 rssi = value;
                             }
                         }
                     }
                 }
-
-            }catch (Exception ex)
-            {
+            } catch (Exception ignored) {
             }
-            if(mac!=null && !mac.isEmpty())
-            {
-                setString("mac",mac);
+            if (mac != null && !mac.isEmpty()) {
+                setString("mac", mac);
                 new File(bkdatapath).delete();
-                Toast.makeText(context,"已导入旧版配置！",Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, "已导入旧版配置！", Toast.LENGTH_SHORT).show();
             }
-            if(rssi!=null && !rssi.isEmpty() && !"-50".equals(rssi))
-            {
-                setString("rssi",rssi);
+            if (rssi != null && !rssi.isEmpty() && !"-50".equals(rssi)) {
+                setString("rssi", rssi);
             }
-
-        } catch (Exception ex)
-        {
-            errorLog("----------initXSP error------------"+ex.toString());
+        } catch (Exception ex) {
+            myLog("----------initXSP error------------" + ex);
         }
     }
 
-    private static XSharedPreferences getPref(String path) {
-        XSharedPreferences pref = new XSharedPreferences(BuildConfig.APPLICATION_ID, path);
-        return pref.getFile().canRead() ? pref : null;
+    public static void syncWithRemote(XposedService service) {
+        try {
+            if (service == null || SPUtils.getInstance().sp == null) {
+                return;
+            }
+            SharedPreferences remote = service.getRemotePreferences(REMOTE_GROUP);
+            SharedPreferences local = SPUtils.getInstance().sp;
+            SharedPreferences.Editor remoteEdit = remote.edit();
+            SharedPreferences.Editor localEdit = local.edit();
+            boolean localChanged = false;
+            for (String key : SYNC_KEYS) {
+                String localVal = local.getString(key, null);
+                String remoteVal = remote.getString(key, null);
+                if (localVal != null) {
+                    remoteEdit.putString(key, localVal);
+                } else if (remoteVal != null) {
+                    localEdit.putString(key, remoteVal);
+                    localChanged = true;
+                }
+            }
+            remoteEdit.commit();
+            if (localChanged) {
+                localEdit.commit();
+            }
+        } catch (Exception ex) {
+            myLog("syncWithRemote error: " + ex);
+        }
     }
 
-    //type1是setting，2是系统界面，0是软件本体
+    // type1是setting，2是系统界面，0是软件本体
     public static String getString(String key, String data, int i) {
-        try{
-        if(i==0)
-        {
-            return SPUtils.getString(key,data);
-        }
-
-            return getPref("config").getString(key,data);
-        }
-        catch (Exception ex)
-        {
-            errorLog(ex.toString());
+        try {
+            if (i == 0) {
+                return SPUtils.getString(key, data);
+            }
+            if (remoteReader != null) {
+                return remoteReader.getString(key, data);
+            }
+            return data;
+        } catch (Exception ex) {
+            myLog(ex.toString());
+            ex.printStackTrace();
             return data;
         }
     }

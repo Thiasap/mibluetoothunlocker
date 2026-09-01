@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="zixing.bluetooth.unlocker">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true"/>
     <!-- 外部存储的写权限 -->
@@ -20,10 +19,12 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <application
+        android:name=".UnlockerApp"
         android:preserveLegacyExternalStorage="true"
         android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:description="@string/xposed_description"
         android:theme="@style/AppTheme"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
@@ -38,18 +39,9 @@
         </activity>
 
         <activity android:name=".activity.DeviceActivity" />
-        <meta-data
-            android:name="xposedmodule"
-            android:value="true" />
-        <meta-data
-            android:name="xposeddescription"
-            android:value="hook MIUI实现非小米手环蓝牙解锁小米手机(注意：使用本插件可能会降低系统安全性)" />
-        <meta-data
-            android:name="xposedminversion"
-            android:value="93" />
-        <meta-data
-            android:name="xposedscope"
-            android:value="com.android.settings;com.android.systemui" />
+        <!-- 现代 libxposed 模块：模块名/描述走 android:label / android:description，
+             作用域与 API 版本走 META-INF/xposed/（scope.list / module.prop），
+             不再使用 legacy xposed meta-data（xposedminversion 会被管理器判为 Legacy 模块） -->
 
     </application>
 </manifest>

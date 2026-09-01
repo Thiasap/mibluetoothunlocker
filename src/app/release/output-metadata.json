@@ -11,10 +11,11 @@
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 50,
-      "versionName": "5.0",
-      "outputFile": "mibluetoothunlocker_v5.0_release_251015_0128.apk"
+      "versionCode": 51,
+      "versionName": "5.1",
+      "outputFile": "mibluetoothunlocker_v5.1_release_260831_1345.apk"
     }
   ],
-  "elementType": "File"
+  "elementType": "File",
+  "minSdkVersionForDexing": 29
 }

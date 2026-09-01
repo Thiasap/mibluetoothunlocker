@@ -1,20 +1,16 @@
 package zixing.bluetooth.unlocker.utils;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.widget.Toast;
 
-import zixing.bluetooth.unlocker.activity.MainActivity;
+import zixing.bluetooth.unlocker.UnlockerApp;
 
 public class SPUtils {
-
 
     public static SPUtils xsp;
     public SharedPreferences sp;
 
     private SPUtils() {
-
     }
 
     public static synchronized SPUtils getInstance() {
@@ -24,33 +20,18 @@ public class SPUtils {
         return xsp;
     }
 
-    public static boolean isEnableModule=false;
-    /**
-     * 初始化
-     *
-     * @param context
-     */
-    @SuppressLint("WorldReadableFiles")
+    public static boolean isEnableModule = false;
+
     public void init(Context context) {
-        try {
-            sp = context.getSharedPreferences("config", Context.MODE_WORLD_READABLE);
-            isEnableModule=true;
-        }catch (Exception ex)
-        {
-            isEnableModule=false;
-            Toast.makeText(context,"请启用模块后再进行操作！",Toast.LENGTH_SHORT).show();
+        if (sp == null) {
+            sp = context.getSharedPreferences("config", Context.MODE_PRIVATE);
         }
+        isEnableModule = UnlockerApp.isModuleEnabled();
     }
 
-    /**
-     * 下面的是读取数据
-     *
-     * @param key
-     * @param def
-     * @return
-     */
     public static String getString(String key, String def) {
-        return SPUtils.getInstance().sp.getString(key, def);
+        SharedPreferences prefs = SPUtils.getInstance().sp;
+        return prefs == null ? def : prefs.getString(key, def);
     }
 
     public static int getInt(String key, int def) {
@@ -69,15 +50,9 @@ public class SPUtils {
         return SPUtils.getInstance().sp.getBoolean(key, def);
     }
 
-    /**
-     * 下面是保存数据
-     *
-     * @param key
-     * @param v
-     * @return
-     */
     public static boolean setString(String key, String v) {
-        return SPUtils.getInstance().sp.edit().putString(key, v).commit();
+        SharedPreferences prefs = SPUtils.getInstance().sp;
+        return prefs != null && prefs.edit().putString(key, v).commit();
     }
 
     public static boolean setInt(String key, int v) {

@@ -3,6 +3,7 @@ package zixing.bluetooth.unlocker.utils;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.BluetoothLeScanner;
@@ -24,8 +25,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
 import zixing.bluetooth.unlocker.Xp.MyXp;
 import zixing.bluetooth.unlocker.activity.MainActivity;
 
@@ -48,7 +47,7 @@ public class BluetoothHelper {
         try {
             Log.i("hookhelper", msg);
             if (MainActivity.self == null) {
-                XposedBridge.log(msg);
+                MyXp.myLog(msg);
             }
         } catch (Exception ex) {
         }
@@ -70,9 +69,9 @@ public class BluetoothHelper {
                 return false;
             }
 
-            final Class CachedBluetoothDeviceClass = XposedHelpers.findClass("com.android.settingslib.bluetooth.CachedBluetoothDevice", classLoader);
+            final Class<?> CachedBluetoothDeviceClass = ReflectUtil.findClass("com.android.settingslib.bluetooth.CachedBluetoothDevice", classLoader);
 
-            ArrayList ConnectedDevices = (ArrayList) (XposedHelpers.callMethod(BluetoothControllerImplInstance, "getConnectedDevices"));
+            ArrayList ConnectedDevices = (ArrayList) (ReflectUtil.callMethod(BluetoothControllerImplInstance, "getConnectedDevices"));
             if (ConnectedDevices == null || ConnectedDevices.size() == 0) {
                 myLog("没有连接的设备");
                 return false;
@@ -101,6 +100,8 @@ public class BluetoothHelper {
                     }
                 }
             }
+        } catch (ReflectUtil.ClassNotFoundError ex) {
+            errorLog("发生错误：" + ex.toString());
         } catch (Exception ex) {
             errorLog("发生错误：" + ex.toString());
         }
@@ -360,6 +361,19 @@ public class BluetoothHelper {
             } else {
                 myLog("不符合解锁条件");
             }
+        }
+    }
+
+    static BluetoothGatt bluetoothGattInstance = null;
+
+    public static void releaseGatt() {
+        try {
+            if (bluetoothGattInstance != null) {
+                bluetoothGattInstance.close();
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            bluetoothGattInstance = null;
         }
     }
 }

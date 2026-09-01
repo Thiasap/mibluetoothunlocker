@@ -5,7 +5,7 @@ plugins {
 android {
 
     namespace 'zixing.bluetooth.unlocker'
-    compileSdk 31
+    compileSdk 35
 
     buildFeatures {
         buildConfig true
@@ -29,8 +29,8 @@ android {
         minSdk 29
         //noinspection ExpiredTargetSdkVersion
         targetSdk 31
-        versionCode 50
-        versionName '5.0'
+        versionCode 51
+        versionName '5.1'
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -44,8 +44,25 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = '11'
-        targetCompatibility = '11'
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        merge 'META-INF/xposed/java_init.list'
+        merge 'META-INF/xposed/module.prop'
+        merge 'META-INF/xposed/scope.list'
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name.toLowerCase().contains("aarmetadata")) {
+        task.enabled = false
     }
 }
 
@@ -55,11 +72,11 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.0.4'
     implementation 'androidx.recyclerview:recyclerview:1.2.1'
     implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'com.jakewharton:butterknife:10.0.0'
-    annotationProcessor 'com.jakewharton:butterknife-compiler:10.0.0'
+    implementation 'com.jakewharton:butterknife:10.2.3'
+    annotationProcessor 'com.jakewharton:butterknife-compiler:10.2.3'
     implementation 'com.getbase:floatingactionbutton:1.10.1'
-    compileOnly files('libs/api-82.jar')
-    compileOnly files('libs/api-82-sources.jar')
+    compileOnly 'io.github.libxposed:api:102.0.0'
+    implementation 'io.github.libxposed:service:102.0.0'
 
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.3'

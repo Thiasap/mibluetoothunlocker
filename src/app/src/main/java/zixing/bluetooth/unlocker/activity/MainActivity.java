@@ -34,6 +34,7 @@ import java.util.List;
 import butterknife.BindView;
 import butterknife.OnClick;
 import zixing.bluetooth.unlocker.R;
+import zixing.bluetooth.unlocker.UnlockerApp;
 import zixing.bluetooth.unlocker.adapter.DerviceAdapter;
 import zixing.bluetooth.unlocker.bean.DeviceBean;
 import zixing.bluetooth.unlocker.utils.BluetoothUtils;
@@ -53,7 +54,7 @@ public class MainActivity extends BaseActivity  {
     private static final boolean DEBUG_LOG = false;
 
     public  static boolean isXpEnable(){
-        return false;
+        return UnlockerApp.isModuleEnabled();
     }
 
     @BindView(R.id.editText)
@@ -625,7 +626,7 @@ public class MainActivity extends BaseActivity  {
     private void notXp()
     {
         Adapter.txtAddress.setText("当前模块未启用");
-        Adapter.txtMac.setText("请前往xposed设置中启用模块");
+        Adapter.txtMac.setText("请前往 LSPosed 中启用模块");
         Adapter.txtRssi.setText("");
         Adapter.txtTime.setText("");
         Adapter.imageSignal.setImageResource(DerviceAdapter.getRssiIcon(0));
