@@ -113,11 +113,21 @@ public class BluetoothHelper {
     static int baseRSSI;
     private static final int CONNECTED_RSSI = -40;
     private static final AtomicBoolean scanning = new AtomicBoolean(false);
+    // 本次判定命中的设备描述（名称(mac)），供解锁成功日志使用
+    private static volatile String hitDeviceDesc = null;
+
+    private static String buildDeviceDesc(String addr, String name) {
+        if (name != null && !name.isEmpty() && addr != null && !addr.isEmpty()) {
+            return name + "(" + addr + ")";
+        }
+        return (addr == null || addr.isEmpty()) ? "Unknown" : addr;
+    }
 
     //type1是setting，2是系统界面，0是软件本体
     @SuppressLint("MissingPermission")
     public static void CanUnlockByBluetoothOldDirect(Context context, String mac, ClassLoader classLoader, int type) {
         try {
+            hitDeviceDesc = null;
             // 入口只读一次配置，避免多次跨进程读取
             List<String> macList;
             String macCfg = ConfigUtil.getString("mac", "", type);
@@ -240,6 +250,7 @@ public class BluetoothHelper {
                 if (rssi > bestRssi.get()) bestRssi.set(rssi);
                 myLog("命中目标设备 by=" + matchReason + " addr=" + addr + " rssi=" + rssi + " 阈值=" + baseRSSI);
                 if (rssi >= baseRSSI) {
+                    hitDeviceDesc = buildDeviceDesc(addr, advName);
                     finishScan(scanner, this, handler, finished, bestRssi.get(), type);
                 }
             }
@@ -322,6 +333,7 @@ public class BluetoothHelper {
                             + " ACL=" + aclConnected);
                     if (gatt == BluetoothProfile.STATE_CONNECTED || gattSrv == BluetoothProfile.STATE_CONNECTED
                             || aclConnected) {
+                        hitDeviceDesc = buildDeviceDesc(mac, dev.getName());
                         return CONNECTED_RSSI;
                     }
                 } catch (Exception ex) {
@@ -335,6 +347,7 @@ public class BluetoothHelper {
                 for (BluetoothDevice d : connected) {
                     if (d != null && macs.contains(d.getAddress().toUpperCase())) {
                         myLog("回退检查 在 GATT 已连接列表中找到目标");
+                        hitDeviceDesc = buildDeviceDesc(d.getAddress(), d.getName());
                         return CONNECTED_RSSI;
                     }
                 }
@@ -344,6 +357,7 @@ public class BluetoothHelper {
                 for (BluetoothDevice d : connectedSrv) {
                     if (d != null && macs.contains(d.getAddress().toUpperCase())) {
                         myLog("回退检查 在 GATT_SERVER 已连接列表中找到目标");
+                        hitDeviceDesc = buildDeviceDesc(d.getAddress(), d.getName());
                         return CONNECTED_RSSI;
                     }
                 }
@@ -370,9 +384,11 @@ public class BluetoothHelper {
 
     private static void handleResult(int rssi, int type) {
         myLog("扫描结束 rssi=" + rssi + " 阈值=" + baseRSSI + " type=" + type);
+        String device = hitDeviceDesc != null ? hitDeviceDesc : "Unknown";
         if (type == 1) {
             if (rssi != Integer.MIN_VALUE && rssi >= baseRSSI) {
                 MyXp.SetBluetoothStatus((byte) 2);
+                errorLog("通过设备" + device + "解锁");
                 myLog("手环状态-成功");
             } else {
                 MyXp.SetBluetoothStatus((byte) 1);
@@ -380,6 +396,7 @@ public class BluetoothHelper {
             }
         } else if (type == 2) {
             if (rssi != Integer.MIN_VALUE && rssi >= baseRSSI) {
+                errorLog("通过设备" + device + "解锁");
                 MyXp.UnlockPhone();
                 myLog("已解锁手机");
             } else {
