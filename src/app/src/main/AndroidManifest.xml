@@ -39,9 +39,6 @@
         </activity>
 
         <activity android:name=".activity.DeviceActivity" />
-        <!-- 现代 libxposed 模块：模块名/描述走 android:label / android:description，
-             作用域与 API 版本走 META-INF/xposed/（scope.list / module.prop），
-             不再使用 legacy xposed meta-data（xposedminversion 会被管理器判为 Legacy 模块） -->
 
     </application>
 </manifest>

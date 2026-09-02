@@ -54,12 +54,9 @@ public class MyXp extends XposedModule {
             // 缓存引用，避免每次读取都重新 getRemotePreferences()
             SharedPreferences prefs = getRemotePreferences(ConfigUtil.REMOTE_GROUP);
             ConfigUtil.remoteReader = prefs::getString;
-            prefs.registerOnSharedPreferenceChangeListener((p, key) ->
-                    myLog("remote config changed: " + key));
         } catch (UnsupportedOperationException e) {
-            // embedded 框架（LSPatch）下无 remote prefs，降级为默认值
             ConfigUtil.remoteReader = null;
-            myLog("remote preferences not supported: " + e);
+            myLog("remote preferences unavailable: " + e);
         }
     }
 
@@ -459,12 +456,21 @@ public class MyXp extends XposedModule {
 
     public static void CheckPhoneUnlock() {
         Runnable mt = () -> {
-            if (context != null && mLockPatternUtils != null && classLoader != null) {
-                BluetoothHelper.CanUnlockByBluetoothOldDirect(context,
-                        ReflectUtil.callMethod(mLockPatternUtils, "getBluetoothAddressToUnlock").toString(),
-                        classLoader, 2);
-            } else {
-                myLog("---------------NULL context--------------" + context + mLockPatternUtils + classLoader);
+            // 子线程内不可抛出未捕获异常，否则线程静默死亡、只剩一行堆栈，排查困难
+            try {
+                if (context == null || mLockPatternUtils == null || classLoader == null) {
+                    myLog("---------------NULL context--------------" + context
+                            + mLockPatternUtils + classLoader);
+                    return;
+                }
+                Object address = ReflectUtil.callMethod(mLockPatternUtils, "getBluetoothAddressToUnlock");
+                if (address == null) {
+                    myLog("getBluetoothAddressToUnlock returned null, skip unlock check");
+                    return;
+                }
+                BluetoothHelper.CanUnlockByBluetoothOldDirect(context, address.toString(), classLoader, 2);
+            } catch (Throwable ex) {
+                myLog("CheckPhoneUnlock error: " + ex);
             }
         };
         Thread mt1 = new Thread(mt, "unlockthread");

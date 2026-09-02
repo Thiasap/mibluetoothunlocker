@@ -124,7 +124,13 @@ public class BluetoothHelper {
                 return;
             }
             String rssiCfg = ConfigUtil.getString("rssi", "-50", type);
-            baseRSSI = Integer.parseInt(rssiCfg);
+            try {
+                baseRSSI = Integer.parseInt(rssiCfg);
+            } catch (NumberFormatException ex) {
+                // 配置值非法时回退默认阈值继续判定，避免写错配置导致解锁永久静默失效
+                baseRSSI = -50;
+                errorLog("rssi 配置非法，回退默认 -50：" + rssiCfg);
+            }
 
             if (!scanning.compareAndSet(false, true)) {
                 myLog("已有扫描在进行，跳过本次");
