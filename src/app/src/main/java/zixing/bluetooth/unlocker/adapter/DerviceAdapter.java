@@ -3,15 +3,19 @@ package zixing.bluetooth.unlocker.adapter;
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
 import android.content.Context;
+import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -21,8 +25,23 @@ import zixing.bluetooth.unlocker.bean.DeviceBean;
 
 public class DerviceAdapter extends BaseRecyclerViewAdapter<DeviceBean> {
 
+    // 选中卡片高亮色（浅蓝）；设备选择页多选用，首页传空集合即无高亮
+    private static final int COLOR_SELECTED = 0xFFBBDEFB;
+
+    private Set<String> selectedAddresses = new HashSet<>();
+
     public DerviceAdapter(Context context) {
         super(new ArrayList<>(),context);
+    }
+
+    public void setSelectedAddresses(Set<String> addresses) {
+        this.selectedAddresses = addresses == null ? new HashSet<>() : addresses;
+        notifyDataSetChanged();
+    }
+
+    public boolean isSelected(DeviceBean data) {
+        return data != null && data.getAddress() != null
+                && selectedAddresses.contains(data.getAddress().toUpperCase());
     }
     @Override
     protected Animator[] getAnimators(View view) {
@@ -62,8 +81,10 @@ public class DerviceAdapter extends BaseRecyclerViewAdapter<DeviceBean> {
             holder.txtRssi.setText("Unknown");
             holder.txtTime.setText("Unknown");
         }
-        holder.imageSignal.setImageResource(getRssiIcon(data.getRssi()));
+        // rssi >= 1 表示未测距（未知），信号图标按最弱显示，避免误显示满格
+        holder.imageSignal.setImageResource(getRssiIcon(data.getRssi() >= 1 ? -120 : data.getRssi()));
         holder.txtDesc.setVisibility(data.isStatus()?View.VISIBLE:View.GONE);
+        holder.cardView.setCardBackgroundColor(isSelected(data) ? COLOR_SELECTED : Color.WHITE);
         animate(viewHolder, position);
     }
 
@@ -94,6 +115,8 @@ public class DerviceAdapter extends BaseRecyclerViewAdapter<DeviceBean> {
         public TextView txtDesc;
         @BindView(R.id.imageSignal)
         public ImageView imageSignal;
+        @BindView(R.id.itemCartView)
+        public CardView cardView;
 
         public MyViewHolder(View view) {
             super(view);
