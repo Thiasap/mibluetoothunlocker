@@ -180,7 +180,7 @@ public class ConfigUtil {
         if (raw == null || raw.isEmpty() || BASE_MODE.equals(raw)) {
             return result;
         }
-        for (String part : raw.split("[,;\\s]+")) {
+        for (String part : raw.split("[,;，；\\s]+")) {
             String m = part.trim().toUpperCase();
             if (!m.isEmpty() && !result.contains(m)) {
                 result.add(m);

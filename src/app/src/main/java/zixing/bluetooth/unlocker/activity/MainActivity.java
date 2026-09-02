@@ -258,9 +258,11 @@ public class MainActivity extends BaseActivity  {
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
-        if(!TextUtils.isEmpty(mac))
+        // 回显完整原始配置串；mac 字段在 readConfig 中只存主设备，不能用来回显
+        String rawCfg = ConfigUtil.getString("mac", "", 0);
+        if(!TextUtils.isEmpty(rawCfg) && !ConfigUtil.BASE_MODE.equals(rawCfg))
         {
-            inputServer.setText(mac);
+            inputServer.setText(rawCfg);
         }
 
         builder.setTitle("请输入自定义的mac地址，多个用逗号分隔\n(如 12:B4:8E:66:99:AA,12:B4:8E:66:99:BB )").setView(inputServer)
@@ -295,7 +297,7 @@ public class MainActivity extends BaseActivity  {
                         if(mac!=null && !mac.isEmpty())
                         {
                             boolean allValid = true;
-                            for (String p : mac.split("[,;\\s]+")) {
+                            for (String p : mac.split("[,;，；\\s]+")) {
                                 if (!p.isEmpty() && !stringIsMac(p)) {
                                     Toast.makeText(MainActivity.this,"MAC 地址格式不正确：" + p,Toast.LENGTH_SHORT).show();
                                     allValid = false;
