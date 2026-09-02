@@ -21,7 +21,9 @@ import android.util.Log;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -109,20 +111,30 @@ public class BluetoothHelper {
     }
 
     static int baseRSSI;
+    private static final int CONNECTED_RSSI = -40;
     private static final AtomicBoolean scanning = new AtomicBoolean(false);
 
     //type1是setting，2是系统界面，0是软件本体
     @SuppressLint("MissingPermission")
     public static void CanUnlockByBluetoothOldDirect(Context context, String mac, ClassLoader classLoader, int type) {
         try {
-            String mac2 = ConfigUtil.getString("mac", "", type);
-            if (!ConfigUtil.BASE_MODE.equals(mac2)) {
-                mac = mac2;
+            // 入口只读一次配置，避免多次跨进程读取
+            List<String> macList;
+            String macCfg = ConfigUtil.getString("mac", "", type);
+            if (ConfigUtil.BASE_MODE.equals(macCfg)) {
+                macList = new ArrayList<>();
+                if (mac != null && !mac.isEmpty()) {
+                    macList.add(mac.toUpperCase());
+                }
+            } else {
+                macList = ConfigUtil.parseMacList(macCfg);
             }
-            myLog("mac is " + mac);
-            if (mac == null || mac.isEmpty()) {
+            if (macList.isEmpty()) {
+                myLog("未配置解锁设备，跳过判定");
                 return;
             }
+            final Set<String> macSet = new LinkedHashSet<>(macList);
+
             String rssiCfg = ConfigUtil.getString("rssi", "-50", type);
             try {
                 baseRSSI = Integer.parseInt(rssiCfg);
@@ -136,14 +148,14 @@ public class BluetoothHelper {
                 myLog("已有扫描在进行，跳过本次");
                 return;
             }
-            int fastFb = fallbackRssiByConnState(context, mac.toUpperCase());
+            int fastFb = fallbackRssiByConnState(context, macSet);
             if (fastFb != Integer.MIN_VALUE) {
                 myLog("快速命中连接状态 直接判定 rssi=" + fastFb);
                 scanning.set(false);
                 handleResult(fastFb, type);
                 return;
             }
-            scanRssiAndAct(context, mac, type);
+            scanRssiAndAct(context, macSet, type);
         } catch (Exception ex) {
             scanning.set(false);
             errorLog("发生错误：" + ex.toString());
@@ -151,7 +163,7 @@ public class BluetoothHelper {
     }
 
     @SuppressLint("MissingPermission")
-    private static void scanRssiAndAct(Context context, final String mac, final int type) {
+    private static void scanRssiAndAct(Context context, final Set<String> macSet, final int type) {
         final BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
         if (adapter == null || !adapter.isEnabled()) {
             myLog("蓝牙未启用，放弃扫描");
@@ -172,17 +184,23 @@ public class BluetoothHelper {
         final AtomicInteger bestRssi = new AtomicInteger(Integer.MIN_VALUE);
 
         final AtomicInteger seenCount = new AtomicInteger(0);
-        final String macUpper = mac.toUpperCase();
 
-        String targetNameTmp = null;
+        // 广播名匹配集合：任一目标设备的名称命中即算匹配
+        final Set<String> nameSet = new LinkedHashSet<>();
         try {
-            BluetoothDevice bonded = adapter.getRemoteDevice(mac);
-            if (bonded != null) targetNameTmp = bonded.getName();
+            for (String mac : macSet) {
+                BluetoothDevice bonded = adapter.getRemoteDevice(mac);
+                if (bonded != null) {
+                    String name = bonded.getName();
+                    if (name != null && !name.isEmpty()) {
+                        nameSet.add(name);
+                    }
+                }
+            }
         } catch (Exception ex) {
             errorLog("获取目标设备名异常：" + ex.toString());
         }
-        final String targetName = targetNameTmp;
-        myLog("目标 mac=" + macUpper + " name=" + targetName);
+        myLog("目标 mac=" + macSet + " name=" + nameSet);
 
         final ScanCallback callback = new ScanCallback() {
             @Override
@@ -201,10 +219,10 @@ public class BluetoothHelper {
 
                 boolean matched = false;
                 String matchReason = null;
-                if (addr != null && addr.equalsIgnoreCase(macUpper)) {
+                if (addr != null && macSet.contains(addr.toUpperCase())) {
                     matched = true;
                     matchReason = "MAC";
-                } else if (targetName != null && !targetName.isEmpty() && targetName.equals(advName)) {
+                } else if (advName != null && !advName.isEmpty() && nameSet.contains(advName)) {
                     matched = true;
                     matchReason = "NAME";
                 } else if (uuids != null) {
@@ -248,8 +266,9 @@ public class BluetoothHelper {
                 .build();
 
         try {
+            // 无 ScanFilter：一轮扫描收全部广播包，多目标匹配不增加扫描次数与功耗
             scanner.startScan(Collections.<ScanFilter>emptyList(), settings, callback);
-            myLog("LeScan 启动（无过滤诊断模式）目标=" + macUpper);
+            myLog("LeScan 启动（无过滤诊断模式）目标=" + macSet);
         } catch (Exception ex) {
             errorLog("startScan 异常：" + ex.toString());
             scanning.set(false);
@@ -264,7 +283,7 @@ public class BluetoothHelper {
                 myLog("扫描超时 累计扫到设备数=" + seenCount.get());
                 int finalRssi = bestRssi.get();
                 if (finalRssi == Integer.MIN_VALUE) {
-                    int fb = fallbackRssiByConnState(ctxFinal, macUpper);
+                    int fb = fallbackRssiByConnState(ctxFinal, macSet);
                     if (fb != Integer.MIN_VALUE) {
                         myLog("使用连接状态回退 rssi=" + fb);
                         finalRssi = fb;
@@ -276,57 +295,56 @@ public class BluetoothHelper {
     }
 
     @SuppressLint("MissingPermission")
-    private static int fallbackRssiByConnState(Context context, String mac) {
+    private static int fallbackRssiByConnState(Context context, Set<String> macs) {
         try {
-            if (context == null) return Integer.MIN_VALUE;
+            if (context == null || macs == null || macs.isEmpty()) return Integer.MIN_VALUE;
             BluetoothManager bm = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
             BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
             if (bm == null || adapter == null) return Integer.MIN_VALUE;
-            BluetoothDevice dev = adapter.getRemoteDevice(mac);
-            if (dev == null) return Integer.MIN_VALUE;
-            int gatt = bm.getConnectionState(dev, BluetoothProfile.GATT);
-            int gattSrv = bm.getConnectionState(dev, BluetoothProfile.GATT_SERVER);
-            int bond = dev.getBondState();
 
-            boolean aclConnected = false;
-            try {
-                Object r = BluetoothDevice.class.getMethod("isConnected").invoke(dev);
-                if (r instanceof Boolean) aclConnected = (Boolean) r;
-            } catch (Exception ex) {
-                errorLog("isConnected 反射异常: " + ex.toString());
+            // 逐设备检查 GATT 连接状态
+            for (String mac : macs) {
+                try {
+                    BluetoothDevice dev = adapter.getRemoteDevice(mac);
+                    if (dev == null) continue;
+                    int gatt = bm.getConnectionState(dev, BluetoothProfile.GATT);
+                    int gattSrv = bm.getConnectionState(dev, BluetoothProfile.GATT_SERVER);
+
+                    boolean aclConnected = false;
+                    try {
+                        Object r = BluetoothDevice.class.getMethod("isConnected").invoke(dev);
+                        if (r instanceof Boolean) aclConnected = (Boolean) r;
+                    } catch (Exception ex) {
+                        errorLog("isConnected 反射异常: " + ex.toString());
+                    }
+
+                    myLog("回退检查 mac=" + mac + " GATT=" + gatt + " GATT_SERVER=" + gattSrv
+                            + " ACL=" + aclConnected);
+                    if (gatt == BluetoothProfile.STATE_CONNECTED || gattSrv == BluetoothProfile.STATE_CONNECTED
+                            || aclConnected) {
+                        return CONNECTED_RSSI;
+                    }
+                } catch (Exception ex) {
+                    errorLog("回退检查设备异常 mac=" + mac + ": " + ex.toString());
+                }
             }
 
-            int adapterAclState = -1;
-            try {
-                Object r = BluetoothAdapter.class.getMethod("getConnectionState").invoke(adapter);
-                if (r instanceof Integer) adapterAclState = (Integer) r;
-            } catch (Exception ex) {
-            }
-
-            myLog("回退检查 mac=" + mac + " bond=" + bond + " GATT=" + gatt + " GATT_SERVER=" + gattSrv
-                    + " ACL=" + aclConnected + " adapterAcl=" + adapterAclState);
-            if (gatt == BluetoothProfile.STATE_CONNECTED || gattSrv == BluetoothProfile.STATE_CONNECTED) {
-                return -40;
-            }
-            if (aclConnected) {
-                myLog("回退命中: ACL 已连接");
-                return -40;
-            }
+            // 已连接列表各查一次，避免逐设备重复跨进程调用
             List<BluetoothDevice> connected = bm.getConnectedDevices(BluetoothProfile.GATT);
             if (connected != null) {
                 for (BluetoothDevice d : connected) {
-                    if (d != null && mac.equalsIgnoreCase(d.getAddress())) {
+                    if (d != null && macs.contains(d.getAddress().toUpperCase())) {
                         myLog("回退检查 在 GATT 已连接列表中找到目标");
-                        return -40;
+                        return CONNECTED_RSSI;
                     }
                 }
             }
             List<BluetoothDevice> connectedSrv = bm.getConnectedDevices(BluetoothProfile.GATT_SERVER);
             if (connectedSrv != null) {
                 for (BluetoothDevice d : connectedSrv) {
-                    if (d != null && mac.equalsIgnoreCase(d.getAddress())) {
+                    if (d != null && macs.contains(d.getAddress().toUpperCase())) {
                         myLog("回退检查 在 GATT_SERVER 已连接列表中找到目标");
-                        return -40;
+                        return CONNECTED_RSSI;
                     }
                 }
             }
