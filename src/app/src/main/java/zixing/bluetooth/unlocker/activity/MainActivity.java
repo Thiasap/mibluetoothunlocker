@@ -112,7 +112,7 @@ public class MainActivity extends BaseActivity  {
     }
 
     private void ShowHelp() {
-        String helpstr = "手环解锁工具\n启用后勾选设置[com.android.setting]和系统界面[com.android.systemui]\n然后重启手机即可，注意：使用本插件可能会降低系统安全性！\n信号阈值为负数，越小越灵敏(越容易被解锁)\n注意：更新软件后，可能要重启设备才会生效";
+        String helpstr = "手环解锁工具\n启用后勾选设置[com.android.setting]和系统界面[com.android.systemui]\n然后重启手机即可，注意：使用本插件可能会降低系统安全性！\n信号阈值为负数，越小越灵敏(越容易被解锁)\n支持多设备解锁：菜单「自定义设备」中用逗号分隔填入多个 MAC，任一设备在附近即可解锁\n注意：更新软件后，可能要重启设备才会生效";
         AlertDialog.Builder builder = new AlertDialog.Builder(self);
         builder.setMessage(helpstr);
         builder.setCancelable(false);
@@ -253,7 +253,8 @@ public class MainActivity extends BaseActivity  {
 
         final EditText inputServer = new EditText(this);
 
-        inputServer.setFilters(new InputFilter[]{new InputFilter.LengthFilter(17)});
+        // 17 字符单 MAC；预留逗号分隔可填多个设备（上限 5 个）
+        inputServer.setFilters(new InputFilter[]{new InputFilter.LengthFilter(89)});
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
@@ -262,7 +263,7 @@ public class MainActivity extends BaseActivity  {
             inputServer.setText(mac);
         }
 
-        builder.setTitle("请输入自定义的mac地址 (如 12:B4:8E:66:99:AA ) ").setView(inputServer)
+        builder.setTitle("请输入自定义的mac地址，多个用逗号分隔\n(如 12:B4:8E:66:99:AA,12:B4:8E:66:99:BB )").setView(inputServer)
 
                 .setNegativeButton("取消", new DialogInterface.OnClickListener() {
 
@@ -293,14 +294,18 @@ public class MainActivity extends BaseActivity  {
 
                         if(mac!=null && !mac.isEmpty())
                         {
-                            if(stringIsMac(mac))
-                            {
-                                ConfigUtil.setString("mac",mac.toUpperCase());
+                            boolean allValid = true;
+                            for (String p : mac.split("[,;\\s]+")) {
+                                if (!p.isEmpty() && !stringIsMac(p)) {
+                                    Toast.makeText(MainActivity.this,"MAC 地址格式不正确：" + p,Toast.LENGTH_SHORT).show();
+                                    allValid = false;
+                                    break;
+                                }
+                            }
+                            if (allValid) {
+                                ConfigUtil.setString("mac",mac.trim().toUpperCase());
                                 MainActivity.self.readConfig();
                                 dialog.dismiss();
-                            }
-                            else{
-                                Toast.makeText(MainActivity.this,"请输入正确的mac地址！",Toast.LENGTH_SHORT).show();
                             }
                         }
                         else
@@ -516,7 +521,8 @@ public class MainActivity extends BaseActivity  {
             String text = ConfigUtil.getString("rssi", "-50", 0);
             editText.setText(text);
 
-            mac = ConfigUtil.getString("mac", "", 0);
+            // 多设备配置时仅展示主设备（第一个），卡片一次只连接一台
+            mac = ConfigUtil.getPrimaryMac(0);
             if(ConfigUtil.BASE_MODE.equals(mac))
             {
                 readBaseMode();

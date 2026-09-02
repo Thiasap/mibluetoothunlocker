@@ -130,7 +130,7 @@ public class DeviceActivity extends BaseActivity implements BluetoothUtils.Bluet
                         return;
                     }
                     AlertDialog.Builder builder = new AlertDialog.Builder(self);
-                    builder.setMessage("是否选择 "+devicename +"作为解锁设备？");
+                    builder.setMessage("是否选择 "+devicename +"作为解锁设备？\n（将重置为仅此设备，如需多设备请用菜单里的自定义设备）");
                     builder.setCancelable(false);
                     builder.setTitle("设备选择");
                     builder.setPositiveButton("确定", (dialog, which) -> {
