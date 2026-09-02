@@ -70,8 +70,11 @@ public class DerviceAdapter extends BaseRecyclerViewAdapter<DeviceBean> {
         MyViewHolder holder = (MyViewHolder) viewHolder;
         DeviceBean data = list.get(position);
         if (data == null) return;
-        holder.txtAddress.setText(data.getName().isEmpty()?"Unknown":data.getName());
-        holder.txtMac.setText(data.getAddress().isEmpty()?"Unknown":data.getAddress());
+        // 手动输入不存在的 MAC 时 getName/getAddress 可能为 null，兜底避免闪退
+        String name = data.getName();
+        holder.txtAddress.setText(name == null || name.isEmpty() ? "Unknown" : name);
+        String addr = data.getAddress();
+        holder.txtMac.setText(addr == null || addr.isEmpty() ? "Unknown" : addr);
         if(data.getRssi()<1)
         {
             holder.txtRssi.setText(data.getRssi()+"dB");

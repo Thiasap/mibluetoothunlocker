@@ -497,7 +497,9 @@ public class MainActivity extends BaseActivity  {
                 }
                 DeviceBean bean = new DeviceBean();
                 bean.setAddress(device.getAddress());
-                bean.setName(device.getName());
+                // 不存在的设备 getName 为 null，兜底避免卡片绑定闪退
+                String devName = device.getName();
+                bean.setName(devName == null ? "" : devName);
                 bean.setStatus(device.getBondState() == BluetoothDevice.BOND_BONDED);
                 bean.setRssi(3);
                 beans.add(bean);
