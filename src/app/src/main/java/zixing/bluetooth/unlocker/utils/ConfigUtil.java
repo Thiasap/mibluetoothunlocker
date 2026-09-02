@@ -13,6 +13,9 @@ import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -169,5 +172,31 @@ public class ConfigUtil {
             ex.printStackTrace();
             return data;
         }
+    }
+
+    /** 多设备地址串 → 列表。分隔符支持逗号/分号/空白；去重、统一大写。basemode 返回空列表。 */
+    public static List<String> parseMacList(String raw) {
+        List<String> result = new ArrayList<>();
+        if (raw == null || raw.isEmpty() || BASE_MODE.equals(raw)) {
+            return result;
+        }
+        for (String part : raw.split("[,;\\s]+")) {
+            String m = part.trim().toUpperCase();
+            if (!m.isEmpty() && !result.contains(m)) {
+                result.add(m);
+            }
+        }
+        return result;
+    }
+
+    /** 便捷入口：读一次配置再解析。 */
+    public static List<String> getMacList(int type) {
+        return parseMacList(getString("mac", "", type));
+    }
+
+    /** 主设备：多设备配置取第一个，用于写入 MIUI 系统与 UI 卡片展示。 */
+    public static String getPrimaryMac(int type) {
+        List<String> list = parseMacList(getString("mac", "", type));
+        return list.isEmpty() ? "" : list.get(0);
     }
 }
