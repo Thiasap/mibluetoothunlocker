@@ -26,6 +26,29 @@ import zixing.bluetooth.unlocker.utils.ReflectUtil;
 public class MyXp extends XposedModule {
 
     private static final String TAG = "hookhelper";
+
+    /**
+     * 登记给系统的占位解锁地址。
+     * 小米解锁服务（com.xiaomi.bluetooth / BLEConnectionManager）会对「已登记」的设备主动发起
+     * GATT over BR/EDR 连接，抢在耳机自己回连之前占住 BR/EDR ACL，导致耳机跳过 HFP/A2DP 回连、
+     * 手机侧又不补连，最终「能解锁但没声音」。
+     * 登记一个真实不存在的地址可避开抢占；解锁判定走 ConfigUtil 的完整 mac 列表，与系统登记值无关。
+     * 可通过配置键 placeholder_mac 覆盖，置空则回退为「登记第一个真实设备」的旧行为。
+     */
+    public static final String PLACEHOLDER_MAC = "AA:AA:AA:AA:AA:AA";
+
+    /** 取写入系统的解锁地址：默认占位，配置 placeholder_mac 为空时使用真实主设备。 */
+    private static String resolveSystemUnlockAddress(List<String> macs) {
+        if (macs == null || macs.isEmpty()) {
+            return null;
+        }
+        String placeholder = ConfigUtil.getString("placeholder_mac", PLACEHOLDER_MAC, 2);
+        if (placeholder != null && !placeholder.trim().isEmpty()) {
+            return placeholder.trim().toUpperCase();
+        }
+        return macs.get(0);
+    }
+
     public static volatile MyXp instance;
     private String processName;
 
@@ -135,13 +158,14 @@ public class MyXp extends XposedModule {
                 ReflectUtil.callMethod(utilclass, "setBluetoothNameToUnlock", "");
                 ReflectUtil.callMethod(utilclass, "setBluetoothKeyToUnlock", "");
             } else {
-                // 系统接口只接受单地址，多设备时登记主设备；解锁判定由模块扫描逻辑完成
+                // 系统接口只接受单地址；写入占位地址避免解锁服务抢占真实设备的 BR/EDR ACL
                 List<String> macs = ConfigUtil.parseMacList(macCfg);
                 if (macs.isEmpty()) {
                     return;
                 }
+                String systemAddr = resolveSystemUnlockAddress(macs);
                 ReflectUtil.callMethod(utilclass, "setBluetoothUnlockEnabled", true);
-                ReflectUtil.callMethod(utilclass, "setBluetoothAddressToUnlock", macs.get(0));
+                ReflectUtil.callMethod(utilclass, "setBluetoothAddressToUnlock", systemAddr);
                 ReflectUtil.callMethod(utilclass, "setBluetoothNameToUnlock", "mibluetoothunlocker");
                 ReflectUtil.callMethod(utilclass, "setBluetoothKeyToUnlock", "mibluetoothunlocker");
             }
@@ -202,7 +226,8 @@ public class MyXp extends XposedModule {
                     ReflectUtil.callMethod(utilclass, "setBluetoothKeyToUnlock", "");
                     macrep[0] = "";
                 } else {
-                    // 系统接口只接受单地址，多设备时登记主设备
+                    // 系统接口只接受单地址；写入占位地址避免解锁服务抢占真实设备的 BR/EDR ACL。
+                    // macrep[0] 仍保留真实主设备，仅供设置界面 / getBluetoothAddressToUnlock 读取。
                     List<String> macs = ConfigUtil.parseMacList(macrep[0]);
                     if (macs.isEmpty()) {
                         macrep[0] = "";
@@ -210,7 +235,8 @@ public class MyXp extends XposedModule {
                         macrep[0] = macs.get(0);
                         Object utilclass = ReflectUtil.newInstance(MiuiLockPatternUtilClass, context1);
                         ReflectUtil.callMethod(utilclass, "setBluetoothUnlockEnabled", true);
-                        ReflectUtil.callMethod(utilclass, "setBluetoothAddressToUnlock", macrep[0]);
+                        ReflectUtil.callMethod(utilclass, "setBluetoothAddressToUnlock",
+                                resolveSystemUnlockAddress(macs));
                         ReflectUtil.callMethod(utilclass, "setBluetoothNameToUnlock", "mibluetoothunlocker");
                         ReflectUtil.callMethod(utilclass, "setBluetoothKeyToUnlock", "mibluetoothunlocker");
                     }
@@ -444,13 +470,15 @@ public class MyXp extends XposedModule {
                             ReflectUtil.callMethod(utilclass, "setBluetoothNameToUnlock", "");
                             ReflectUtil.callMethod(utilclass, "setBluetoothKeyToUnlock", "");
                         } else {
-                            // 系统接口只接受单地址，多设备时登记主设备
+                            // 系统接口只接受单地址；写入占位地址避免解锁服务抢占真实设备的 BR/EDR ACL。
+                            // macrep[0] 仍保留真实主设备，仅供 getBluetoothAddressToUnlock 读取。
                             List<String> macs = ConfigUtil.parseMacList(macrep[0]);
                             if (!macs.isEmpty()) {
                                 macrep[0] = macs.get(0);
                                 Object utilclass = ReflectUtil.newInstance(MiuiLockPatternUtilClass, context1);
                                 ReflectUtil.callMethod(utilclass, "setBluetoothUnlockEnabled", true);
-                                ReflectUtil.callMethod(utilclass, "setBluetoothAddressToUnlock", macrep[0]);
+                                ReflectUtil.callMethod(utilclass, "setBluetoothAddressToUnlock",
+                                        resolveSystemUnlockAddress(macs));
                                 ReflectUtil.callMethod(utilclass, "setBluetoothNameToUnlock", "mibluetoothunlocker");
                                 ReflectUtil.callMethod(utilclass, "setBluetoothKeyToUnlock", "mibluetoothunlocker");
                             }

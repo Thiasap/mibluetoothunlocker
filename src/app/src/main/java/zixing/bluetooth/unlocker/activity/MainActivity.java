@@ -9,7 +9,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
-import android.text.InputFilter;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
@@ -255,9 +254,6 @@ public class MainActivity extends BaseActivity  {
     private void CustomeDevice() {
 
         final EditText inputServer = new EditText(this);
-
-        // 17 字符单 MAC；预留逗号分隔可填多个设备（上限 5 个）
-        inputServer.setFilters(new InputFilter[]{new InputFilter.LengthFilter(89)});
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
